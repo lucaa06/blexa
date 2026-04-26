@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Blexa — Lead generation per agenzie italiane</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -519,16 +520,33 @@ Object.assign(window, { Logo, Wordmark, Icon });
 // Hero section with live scanning demo + 5 layout variants
 
 const ITALIAN_CITIES = ['Milano', 'Roma', 'Napoli', 'Torino', 'Bologna', 'Firenze', 'Venezia', 'Genova', 'Verona', 'Bari'];
-const SAMPLE_LEADS = [
-  { name: 'Ristorante La Bussola', cat: 'Ristoranti', city: 'Napoli', region: 'Campania', score: 18 },
-  { name: 'Hotel Villa Aurora', cat: 'Hotel', city: 'Firenze', region: 'Toscana', score: 43 },
-  { name: 'Studio Legale Ferrara', cat: 'Studi Legali', city: 'Milano', region: 'Lombardia', score: 9 },
-  { name: 'Erboristeria Natura', cat: 'Erboristerie', city: 'Bologna', region: 'Emilia-Romagna', score: 52 },
-  { name: 'Pasticceria San Marco', cat: 'Pasticcerie', city: 'Venezia', region: 'Veneto', score: 24 },
-  { name: 'Officina Meccanica Rossi', cat: 'Officine', city: 'Torino', region: 'Piemonte', score: 31 },
-  { name: 'Boutique Eleganza', cat: 'Abbigliamento', city: 'Roma', region: 'Lazio', score: 14 },
-  { name: 'Centro Estetico Aura', cat: 'Estetica', city: 'Bari', region: 'Puglia', score: 38 },
-];
+
+const REGIONI_ITALIA = {
+  'Milano': 'Lombardia', 'Roma': 'Lazio', 'Napoli': 'Campania', 'Torino': 'Piemonte',
+  'Bologna': 'Emilia-Romagna', 'Firenze': 'Toscana', 'Venezia': 'Veneto',
+  'Genova': 'Liguria', 'Verona': 'Veneto', 'Bari': 'Puglia'
+};
+
+const NOMI_CATEGORIE = {
+  'Ristoranti': ['La Bussola', 'Il Gabbiano', 'Da Mario', 'Trattoria Antica', 'Osteria del Borgo', 'La Brace'],
+  'Hotel': ['Villa Aurora', 'Hotel Excelsior', 'Grand Hotel', 'Albergo Roma', 'Hotel Centrale', 'Relais Paradiso'],
+  'Studi Legali': ['Studio Legale', 'Avvocati Associati', 'Studio Rossi', 'Lex Consulting', 'Studio Legale Bianchi'],
+  'Estetica': ['Centro Estetico', 'Benessere Totale', 'La Perla', 'Estetica Moderna', 'Beauty Center']
+};
+
+function generateLeadsForCity(city) {
+  const region = REGIONI_ITALIA[city] || 'Italia';
+  const categories = Object.keys(NOMI_CATEGORIE);
+  const leads = [];
+  for (let i = 0; i < 4; i++) {
+    const cat = categories[Math.floor(Math.random() * categories.length)];
+    const names = NOMI_CATEGORIE[cat];
+    const name = names[Math.floor(Math.random() * names.length)] + (Math.random() > 0.5 ? ' ' + city : '');
+    const score = Math.floor(Math.random() * 100);
+    leads.push({ name: name + ' ' + Math.floor(Math.random()*100), cat, city, region, score });
+  }
+  return leads;
+}
 
 const scoreClass = (s) => s < 40 ? 'low' : s < 70 ? 'mid' : 'high';
 const scoreLabel = (s) => s < 40 ? 'Alta' : s < 70 ? 'Media' : 'Bassa';
@@ -540,9 +558,13 @@ function ScanningDemo({ compact = false }) {
   const [foundLeads, setFoundLeads] = React.useState([]);
   const [cityIdx, setCityIdx] = React.useState(0);
   const target = ITALIAN_CITIES[cityIdx];
+  const [currentLeads, setCurrentLeads] = React.useState([]);
 
   React.useEffect(() => {
     if (phase !== 'typing') return;
+    if (typed === '') {
+      setCurrentLeads(generateLeadsForCity(target));
+    }
     if (typed.length < target.length) {
       const t = setTimeout(() => setTyped(target.slice(0, typed.length + 1)), 90);
       return () => clearTimeout(t);
@@ -557,7 +579,7 @@ function ScanningDemo({ compact = false }) {
     let i = 0;
     const id = setInterval(() => {
       i++;
-      setFoundLeads(SAMPLE_LEADS.slice(0, i));
+      setFoundLeads(currentLeads.slice(0, i));
       if (i >= 4) {
         clearInterval(id);
         setTimeout(() => setPhase('results'), 600);
@@ -603,7 +625,7 @@ function ScanningDemo({ compact = false }) {
         ))}
       </div>
       <div className="scanner-results">
-        {SAMPLE_LEADS.slice(0, 4).map((lead, i) => {
+        {currentLeads.slice(0, 4).map((lead, i) => {
           const visible = foundLeads.length > i || phase === 'results';
           return (
             <div key={lead.name} className={`lead-row ${visible ? 'in' : ''}`} style={{ transitionDelay: `${i * 60}ms` }}>
@@ -806,8 +828,9 @@ function HeroV2_Centered() {
           <span className="trust-item"><span className="trust-dot"/>Cancella quando vuoi</span>
         </div>
       </div>
-      <div className="container" style={{ marginTop: 80 }}>
+      <div className="container" style={{ marginTop: 80, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '60px' }}>
         <ScanningDemo />
+        <img src="brand_image.png" alt="Blexa Platform Preview" style={{ width: '100%', maxWidth: '1000px', borderRadius: '16px', boxShadow: '0 24px 64px rgba(0,0,0,0.08)', border: '1px solid var(--line)' }} />
       </div>
     </section>
   );
@@ -925,7 +948,7 @@ const HERO_VARIANTS = {
 Object.assign(window, {
   ScanningDemo, HeroStats, Countdown, SignupForm,
   HeroV1_Split, HeroV2_Centered, HeroV3_Editorial, HeroV4_Terminal, HeroV5_BigType,
-  HERO_VARIANTS, SAMPLE_LEADS, scoreClass, scoreLabel,
+  HERO_VARIANTS, scoreClass, scoreLabel,
 });
 
 </script>
