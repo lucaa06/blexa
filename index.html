@@ -1336,11 +1336,11 @@ function PricingSection({ style = 'cards' }) {
         <div className="section-head section-head-center">
           <div className="eyebrow">Prezzi</div>
           <h2 className="section-title">
-            Entra in beta.<br/>
-            <span className="serif">Blocca il prezzo per sempre.</span>
+            Scegli il piano perfetto<br/>
+            <span className="serif">per la tua crescita.</span>
           </h2>
           <p className="lead">
-            I primi 200 beta tester pagano €39/mese per sempre. Poi il prezzo sale a €89/mese.
+            Inizia a trovare i tuoi clienti ideali con un investimento minimo. Piani flessibili, cancella quando vuoi.
           </p>
           <div className="billing-toggle">
             <button className={billing === 'monthly' ? 'on' : ''} onClick={() => setBilling('monthly')}>Mensile</button>
@@ -1351,52 +1351,64 @@ function PricingSection({ style = 'cards' }) {
         </div>
 
         <div className={`pricing-grid pricing-${style}`}>
-          {/* Standard plan */}
+          {/* Starter plan */}
           <div className="price-card price-card-standard">
             <div className="price-head">
-              <h3>Standard</h3>
-              <span className="tag">Dal lancio</span>
+              <h3>Starter</h3>
             </div>
             <div className="price-amount">
-              <span className="amt mono">{fmt(89 * factor)}</span>
+              <span className="amt mono">{fmt(5 * factor)}</span>
               <span className="per">{billing === 'monthly' ? '/mese' : '/anno'}</span>
             </div>
-            <p className="price-note">Disponibile dal lancio ufficiale.</p>
+            <p className="price-note">Ideale per freelance alle prime armi.</p>
             <ul className="price-list">
-              <li><Icon.check width="16" height="16"/>Scanner multi-fonte illimitato</li>
-              <li><Icon.check width="16" height="16"/>Digital Score + Audit completo</li>
-              <li><Icon.check width="16" height="16"/>Email broadcast</li>
-              <li><Icon.check width="16" height="16"/>CRM integrato</li>
-              <li><Icon.check width="16" height="16"/>Supporto email</li>
+              <li><Icon.check width="16" height="16"/>50 scansioni / mese</li>
+              <li><Icon.check width="16" height="16"/>Digital Score base</li>
+              <li><Icon.check width="16" height="16"/>Export in CSV</li>
+              <li><Icon.check width="16" height="16"/>Supporto via email</li>
             </ul>
-            <button className="btn btn-ghost btn-lg" disabled style={{ width: '100%' }}>Aspetta il lancio</button>
+            <button className="btn btn-ghost btn-lg" style={{ width: '100%' }}>Inizia con Starter</button>
           </div>
 
-          {/* Beta plan */}
+          {/* Pro plan */}
           <div className="price-card price-card-beta">
-            <div className="ribbon mono"><Icon.flame width="11" height="11"/> Early Bird · Solo 200 posti</div>
+            <div className="ribbon mono"><Icon.flame width="11" height="11"/> Più Scelto</div>
             <div className="price-head">
-              <h3>Beta Tester</h3>
-              <span className="tag tag-accent mono">−56%</span>
+              <h3>Pro</h3>
             </div>
             <div className="price-amount">
-              <span className="amt-strike mono">{fmt(89 * factor)}</span>
-              <span className="amt mono accent-num">{fmt(39 * factor)}</span>
+              <span className="amt mono accent-num">{fmt(10 * factor)}</span>
               <span className="per">{billing === 'monthly' ? '/mese' : '/anno'}</span>
             </div>
-            <p className="price-note">Prezzo bloccato per sempre. Risparmi il 56% — per sempre.</p>
+            <p className="price-note">Perfetto per liberi professionisti strutturati.</p>
             <ul className="price-list">
-              <li><Icon.check width="16" height="16"/>Tutto del piano Standard</li>
-              <li><Icon.check width="16" height="16"/>Accesso beta immediato</li>
-              <li><Icon.check width="16" height="16"/>Influenza il product roadmap</li>
-              <li><Icon.check width="16" height="16"/>Badge "Founding Member"</li>
-              <li><Icon.check width="16" height="16"/>Supporto prioritario</li>
+              <li><Icon.check width="16" height="16"/>Scansioni illimitate</li>
+              <li><Icon.check width="16" height="16"/>Digital Score completo</li>
+              <li><Icon.check width="16" height="16"/>CRM integrato</li>
+              <li><Icon.check width="16" height="16"/>Email broadcast (500/mese)</li>
             </ul>
             <button className="btn btn-primary btn-lg" style={{ width: '100%' }}>
-              Prenota per {fmt(39 * factor)}{billing === 'monthly' ? '/mese' : '/anno'}
-              <Icon.arrow width="16" height="16"/>
+              Scegli Pro <Icon.arrow width="16" height="16"/>
             </button>
-            <p className="price-fineprint">Nessun addebito ora · Carta di credito solo al lancio</p>
+          </div>
+
+          {/* Business plan */}
+          <div className="price-card price-card-standard">
+            <div className="price-head">
+              <h3>Business</h3>
+            </div>
+            <div className="price-amount">
+              <span className="amt mono">{fmt(20 * factor)}</span>
+              <span className="per">{billing === 'monthly' ? '/mese' : '/anno'}</span>
+            </div>
+            <p className="price-note">Per agenzie in espansione e team.</p>
+            <ul className="price-list">
+              <li><Icon.check width="16" height="16"/>Tutto del piano Pro</li>
+              <li><Icon.check width="16" height="16"/>Email illimitate</li>
+              <li><Icon.check width="16" height="16"/>Integrazioni API</li>
+              <li><Icon.check width="16" height="16"/>Supporto prioritario</li>
+            </ul>
+            <button className="btn btn-ghost btn-lg" style={{ width: '100%' }}>Scegli Business</button>
           </div>
         </div>
       </div>
