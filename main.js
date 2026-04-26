@@ -7,7 +7,7 @@
   var supabase = window.supabase.createClient(_u, _k);
 
   if (typeof initGDPR === 'function') {
-    initGDPR({ brandName: 'Blexa AI', accentColor: '#0050FF' });
+    initGDPR({ brandName: 'Blexa AI', accentColor: '#7C3AED' });
   }
 
   var nav = document.getElementById('nav');
