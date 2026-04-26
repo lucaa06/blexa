@@ -31,22 +31,38 @@
 
   <nav id="nav">
     <div class="nav-inner">
-      <!-- LOGO: "B" con onde dati che si irradiano -->
+      <!-- LOGO: Premium squircle + neural B -->
       <a href="/" class="logo">
         <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <!-- Sfondo esagonale -->
-          <path d="M18 2 L31 9.5 L31 26.5 L18 34 L5 26.5 L5 9.5 Z" fill="url(#bx_grad)" rx="3"/>
           <defs>
-            <linearGradient id="bx_grad" x1="5" y1="2" x2="31" y2="34">
-              <stop offset="0%" stop-color="#7C3AED"/>
-              <stop offset="100%" stop-color="#5B21B6"/>
+            <linearGradient id="bx_grad" x1="0" y1="0" x2="36" y2="36">
+              <stop offset="0%" stop-color="#A855F7"/>
+              <stop offset="50%" stop-color="#7C3AED"/>
+              <stop offset="100%" stop-color="#6D28D9"/>
             </linearGradient>
+            <linearGradient id="bx_glow" x1="0" y1="0" x2="36" y2="36">
+              <stop offset="0%" stop-color="#C084FC" stop-opacity=".4"/>
+              <stop offset="100%" stop-color="#7C3AED" stop-opacity=".1"/>
+            </linearGradient>
+            <filter id="bx_shadow">
+              <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#7C3AED" flood-opacity=".35"/>
+            </filter>
           </defs>
-          <!-- "B" letter -->
-          <text x="10" y="25" font-family="Space Grotesk,sans-serif" font-weight="700" font-size="18" fill="white">B</text>
-          <!-- Onde segnale AI a destra -->
-          <path d="M24 13 Q29 18 24 23" stroke="#00B4D8" stroke-width="1.8" fill="none" stroke-linecap="round" opacity=".9"/>
-          <path d="M26 10.5 Q33 18 26 25.5" stroke="#00B4D8" stroke-width="1.2" fill="none" stroke-linecap="round" opacity=".5"/>
+          <!-- Outer glow ring -->
+          <rect x="1" y="1" width="34" height="34" rx="10" fill="none" stroke="url(#bx_glow)" stroke-width="1.5"/>
+          <!-- Main squircle -->
+          <rect x="3" y="3" width="30" height="30" rx="8" fill="url(#bx_grad)" filter="url(#bx_shadow)"/>
+          <!-- Subtle inner shine -->
+          <rect x="3" y="3" width="30" height="16" rx="8" fill="white" opacity=".08"/>
+          <!-- "B" letter — bold, centered -->
+          <text x="18" y="24.5" font-family="Space Grotesk,sans-serif" font-weight="700" font-size="19" fill="white" text-anchor="middle">B</text>
+          <!-- AI neural dots -->
+          <circle cx="28" cy="8" r="2" fill="#C084FC" opacity=".7"/>
+          <circle cx="31" cy="14" r="1.3" fill="#A855F7" opacity=".5"/>
+          <circle cx="28" cy="28" r="1.5" fill="#E9D5FF" opacity=".4"/>
+          <!-- Neural connection lines -->
+          <line x1="28" y1="8" x2="31" y2="14" stroke="#C084FC" stroke-width=".7" opacity=".4"/>
+          <line x1="28" y1="8" x2="24" y2="12" stroke="#C084FC" stroke-width=".5" opacity=".3"/>
         </svg>
         <span>Blexa <em>AI</em></span>
       </a>
@@ -346,9 +362,17 @@
       <div class="footer-brand">
         <a href="/" class="logo">
           <svg width="28" height="28" viewBox="0 0 36 36" fill="none">
-            <path d="M18 2 L31 9.5 L31 26.5 L18 34 L5 26.5 L5 9.5 Z" fill="#7C3AED"/>
-            <text x="10" y="25" font-family="Space Grotesk,sans-serif" font-weight="700" font-size="18" fill="white">B</text>
-            <path d="M24 13 Q29 18 24 23" stroke="#00B4D8" stroke-width="1.8" fill="none" stroke-linecap="round" opacity=".9"/>
+            <defs>
+              <linearGradient id="bx_grad_f" x1="0" y1="0" x2="36" y2="36">
+                <stop offset="0%" stop-color="#A855F7"/>
+                <stop offset="50%" stop-color="#7C3AED"/>
+                <stop offset="100%" stop-color="#6D28D9"/>
+              </linearGradient>
+            </defs>
+            <rect x="3" y="3" width="30" height="30" rx="8" fill="url(#bx_grad_f)"/>
+            <text x="18" y="24.5" font-family="Space Grotesk,sans-serif" font-weight="700" font-size="19" fill="white" text-anchor="middle">B</text>
+            <circle cx="28" cy="8" r="2" fill="#C084FC" opacity=".6"/>
+            <circle cx="31" cy="14" r="1.3" fill="#A855F7" opacity=".4"/>
           </svg>
           <span>Blexa <em>AI</em></span>
         </a>
