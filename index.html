@@ -20,10 +20,1556 @@
 <body>
   <div id="root"></div>
 
-  <script type="text/babel" src="tweaks-panel.jsx"></script>
-  <script type="text/babel" src="brand.jsx"></script>
-  <script type="text/babel" src="hero.jsx"></script>
-  <script type="text/babel" src="sections.jsx"></script>
+  <script type="text/babel">
+
+// tweaks-panel.jsx
+// Reusable Tweaks shell + form-control helpers.
+//
+// Owns the host protocol (listens for __activate_edit_mode / __deactivate_edit_mode,
+// posts __edit_mode_available / __edit_mode_set_keys / __edit_mode_dismissed) so
+// individual prototypes don't re-roll it. Ships a consistent set of controls so you
+// don't hand-draw <input type="range">, segmented radios, steppers, etc.
+//
+// Usage (in an HTML file that loads React + Babel):
+//
+//   const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+//     "primaryColor": "#D97757",
+//     "fontSize": 16,
+//     "density": "regular",
+//     "dark": false
+//   }/*EDITMODE-END*/;
+//
+//   function App() {
+//     const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+//     return (
+//       <div style={{ fontSize: t.fontSize, color: t.primaryColor }}>
+//         Hello
+//         <TweaksPanel>
+//           <TweakSection label="Typography" />
+//           <TweakSlider label="Font size" value={t.fontSize} min={10} max={32} unit="px"
+//                        onChange={(v) => setTweak('fontSize', v)} />
+//           <TweakRadio  label="Density" value={t.density}
+//                        options={['compact', 'regular', 'comfy']}
+//                        onChange={(v) => setTweak('density', v)} />
+//           <TweakSection label="Theme" />
+//           <TweakColor  label="Primary" value={t.primaryColor}
+//                        onChange={(v) => setTweak('primaryColor', v)} />
+//           <TweakToggle label="Dark mode" value={t.dark}
+//                        onChange={(v) => setTweak('dark', v)} />
+//         </TweaksPanel>
+//       </div>
+//     );
+//   }
+//
+// ─────────────────────────────────────────────────────────────────────────────
+
+const __TWEAKS_STYLE = `
+  .twk-panel{position:fixed;right:16px;bottom:16px;z-index:2147483646;width:280px;
+    max-height:calc(100vh - 32px);display:flex;flex-direction:column;
+    background:rgba(250,249,247,.78);color:#29261b;
+    -webkit-backdrop-filter:blur(24px) saturate(160%);backdrop-filter:blur(24px) saturate(160%);
+    border:.5px solid rgba(255,255,255,.6);border-radius:14px;
+    box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 12px 40px rgba(0,0,0,.18);
+    font:11.5px/1.4 ui-sans-serif,system-ui,-apple-system,sans-serif;overflow:hidden}
+  .twk-hd{display:flex;align-items:center;justify-content:space-between;
+    padding:10px 8px 10px 14px;cursor:move;user-select:none}
+  .twk-hd b{font-size:12px;font-weight:600;letter-spacing:.01em}
+  .twk-x{appearance:none;border:0;background:transparent;color:rgba(41,38,27,.55);
+    width:22px;height:22px;border-radius:6px;cursor:default;font-size:13px;line-height:1}
+  .twk-x:hover{background:rgba(0,0,0,.06);color:#29261b}
+  .twk-body{padding:2px 14px 14px;display:flex;flex-direction:column;gap:10px;
+    overflow-y:auto;overflow-x:hidden;min-height:0;
+    scrollbar-width:thin;scrollbar-color:rgba(0,0,0,.15) transparent}
+  .twk-body::-webkit-scrollbar{width:8px}
+  .twk-body::-webkit-scrollbar-track{background:transparent;margin:2px}
+  .twk-body::-webkit-scrollbar-thumb{background:rgba(0,0,0,.15);border-radius:4px;
+    border:2px solid transparent;background-clip:content-box}
+  .twk-body::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,.25);
+    border:2px solid transparent;background-clip:content-box}
+  .twk-row{display:flex;flex-direction:column;gap:5px}
+  .twk-row-h{flex-direction:row;align-items:center;justify-content:space-between;gap:10px}
+  .twk-lbl{display:flex;justify-content:space-between;align-items:baseline;
+    color:rgba(41,38,27,.72)}
+  .twk-lbl>span:first-child{font-weight:500}
+  .twk-val{color:rgba(41,38,27,.5);font-variant-numeric:tabular-nums}
+
+  .twk-sect{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+    color:rgba(41,38,27,.45);padding:10px 0 0}
+  .twk-sect:first-child{padding-top:0}
+
+  .twk-field{appearance:none;width:100%;height:26px;padding:0 8px;
+    border:.5px solid rgba(0,0,0,.1);border-radius:7px;
+    background:rgba(255,255,255,.6);color:inherit;font:inherit;outline:none}
+  .twk-field:focus{border-color:rgba(0,0,0,.25);background:rgba(255,255,255,.85)}
+  select.twk-field{padding-right:22px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='rgba(0,0,0,.5)' d='M0 0h10L5 6z'/></svg>");
+    background-repeat:no-repeat;background-position:right 8px center}
+
+  .twk-slider{appearance:none;-webkit-appearance:none;width:100%;height:4px;margin:6px 0;
+    border-radius:999px;background:rgba(0,0,0,.12);outline:none}
+  .twk-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
+    width:14px;height:14px;border-radius:50%;background:#fff;
+    border:.5px solid rgba(0,0,0,.12);box-shadow:0 1px 3px rgba(0,0,0,.2);cursor:default}
+  .twk-slider::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
+    background:#fff;border:.5px solid rgba(0,0,0,.12);box-shadow:0 1px 3px rgba(0,0,0,.2);cursor:default}
+
+  .twk-seg{position:relative;display:flex;padding:2px;border-radius:8px;
+    background:rgba(0,0,0,.06);user-select:none}
+  .twk-seg-thumb{position:absolute;top:2px;bottom:2px;border-radius:6px;
+    background:rgba(255,255,255,.9);box-shadow:0 1px 2px rgba(0,0,0,.12);
+    transition:left .15s cubic-bezier(.3,.7,.4,1),width .15s}
+  .twk-seg.dragging .twk-seg-thumb{transition:none}
+  .twk-seg button{appearance:none;position:relative;z-index:1;flex:1;border:0;
+    background:transparent;color:inherit;font:inherit;font-weight:500;height:22px;
+    border-radius:6px;cursor:default;padding:0}
+
+  .twk-toggle{position:relative;width:32px;height:18px;border:0;border-radius:999px;
+    background:rgba(0,0,0,.15);transition:background .15s;cursor:default;padding:0}
+  .twk-toggle[data-on="1"]{background:#34c759}
+  .twk-toggle i{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;
+    background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+  .twk-toggle[data-on="1"] i{transform:translateX(14px)}
+
+  .twk-num{display:flex;align-items:center;height:26px;padding:0 0 0 8px;
+    border:.5px solid rgba(0,0,0,.1);border-radius:7px;background:rgba(255,255,255,.6)}
+  .twk-num-lbl{font-weight:500;color:rgba(41,38,27,.6);cursor:ew-resize;
+    user-select:none;padding-right:8px}
+  .twk-num input{flex:1;min-width:0;height:100%;border:0;background:transparent;
+    font:inherit;font-variant-numeric:tabular-nums;text-align:right;padding:0 8px 0 0;
+    outline:none;color:inherit;-moz-appearance:textfield}
+  .twk-num input::-webkit-inner-spin-button,.twk-num input::-webkit-outer-spin-button{
+    -webkit-appearance:none;margin:0}
+  .twk-num-unit{padding-right:8px;color:rgba(41,38,27,.45)}
+
+  .twk-btn{appearance:none;height:26px;padding:0 12px;border:0;border-radius:7px;
+    background:rgba(0,0,0,.78);color:#fff;font:inherit;font-weight:500;cursor:default}
+  .twk-btn:hover{background:rgba(0,0,0,.88)}
+  .twk-btn.secondary{background:rgba(0,0,0,.06);color:inherit}
+  .twk-btn.secondary:hover{background:rgba(0,0,0,.1)}
+
+  .twk-swatch{appearance:none;-webkit-appearance:none;width:56px;height:22px;
+    border:.5px solid rgba(0,0,0,.1);border-radius:6px;padding:0;cursor:default;
+    background:transparent;flex-shrink:0}
+  .twk-swatch::-webkit-color-swatch-wrapper{padding:0}
+  .twk-swatch::-webkit-color-swatch{border:0;border-radius:5.5px}
+  .twk-swatch::-moz-color-swatch{border:0;border-radius:5.5px}
+`;
+
+// ── useTweaks ───────────────────────────────────────────────────────────────
+// Single source of truth for tweak values. setTweak persists via the host
+// (__edit_mode_set_keys → host rewrites the EDITMODE block on disk).
+function useTweaks(defaults) {
+  const [values, setValues] = React.useState(defaults);
+  const setTweak = React.useCallback((key, val) => {
+    setValues((prev) => ({ ...prev, [key]: val }));
+    window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { [key]: val } }, '*');
+  }, []);
+  return [values, setTweak];
+}
+
+// ── TweaksPanel ─────────────────────────────────────────────────────────────
+// Floating shell. Registers the protocol listener BEFORE announcing
+// availability — if the announce ran first, the host's activate could land
+// before our handler exists and the toolbar toggle would silently no-op.
+// The close button posts __edit_mode_dismissed so the host's toolbar toggle
+// flips off in lockstep; the host echoes __deactivate_edit_mode back which
+// is what actually hides the panel.
+function TweaksPanel({ title = 'Tweaks', children }) {
+  const [open, setOpen] = React.useState(false);
+  const dragRef = React.useRef(null);
+  const offsetRef = React.useRef({ x: 16, y: 16 });
+  const PAD = 16;
+
+  const clampToViewport = React.useCallback(() => {
+    const panel = dragRef.current;
+    if (!panel) return;
+    const w = panel.offsetWidth, h = panel.offsetHeight;
+    const maxRight = Math.max(PAD, window.innerWidth - w - PAD);
+    const maxBottom = Math.max(PAD, window.innerHeight - h - PAD);
+    offsetRef.current = {
+      x: Math.min(maxRight, Math.max(PAD, offsetRef.current.x)),
+      y: Math.min(maxBottom, Math.max(PAD, offsetRef.current.y)),
+    };
+    panel.style.right = offsetRef.current.x + 'px';
+    panel.style.bottom = offsetRef.current.y + 'px';
+  }, []);
+
+  React.useEffect(() => {
+    if (!open) return;
+    clampToViewport();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', clampToViewport);
+      return () => window.removeEventListener('resize', clampToViewport);
+    }
+    const ro = new ResizeObserver(clampToViewport);
+    ro.observe(document.documentElement);
+    return () => ro.disconnect();
+  }, [open, clampToViewport]);
+
+  React.useEffect(() => {
+    const onMsg = (e) => {
+      const t = e?.data?.type;
+      if (t === '__activate_edit_mode') setOpen(true);
+      else if (t === '__deactivate_edit_mode') setOpen(false);
+    };
+    window.addEventListener('message', onMsg);
+    window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+
+  const dismiss = () => {
+    setOpen(false);
+    window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*');
+  };
+
+  const onDragStart = (e) => {
+    const panel = dragRef.current;
+    if (!panel) return;
+    const r = panel.getBoundingClientRect();
+    const sx = e.clientX, sy = e.clientY;
+    const startRight = window.innerWidth - r.right;
+    const startBottom = window.innerHeight - r.bottom;
+    const move = (ev) => {
+      offsetRef.current = {
+        x: startRight - (ev.clientX - sx),
+        y: startBottom - (ev.clientY - sy),
+      };
+      clampToViewport();
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  };
+
+  if (!open) return null;
+  return (
+    <>
+      <style>{__TWEAKS_STYLE}</style>
+      <div ref={dragRef} className="twk-panel"
+           style={{ right: offsetRef.current.x, bottom: offsetRef.current.y }}>
+        <div className="twk-hd" onMouseDown={onDragStart}>
+          <b>{title}</b>
+          <button className="twk-x" aria-label="Close tweaks"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={dismiss}>✕</button>
+        </div>
+        <div className="twk-body">{children}</div>
+      </div>
+    </>
+  );
+}
+
+// ── Layout helpers ──────────────────────────────────────────────────────────
+
+function TweakSection({ label, children }) {
+  return (
+    <>
+      <div className="twk-sect">{label}</div>
+      {children}
+    </>
+  );
+}
+
+function TweakRow({ label, value, children, inline = false }) {
+  return (
+    <div className={inline ? 'twk-row twk-row-h' : 'twk-row'}>
+      <div className="twk-lbl">
+        <span>{label}</span>
+        {value != null && <span className="twk-val">{value}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// ── Controls ────────────────────────────────────────────────────────────────
+
+function TweakSlider({ label, value, min = 0, max = 100, step = 1, unit = '', onChange }) {
+  return (
+    <TweakRow label={label} value={`${value}${unit}`}>
+      <input type="range" className="twk-slider" min={min} max={max} step={step}
+             value={value} onChange={(e) => onChange(Number(e.target.value))} />
+    </TweakRow>
+  );
+}
+
+function TweakToggle({ label, value, onChange }) {
+  return (
+    <div className="twk-row twk-row-h">
+      <div className="twk-lbl"><span>{label}</span></div>
+      <button type="button" className="twk-toggle" data-on={value ? '1' : '0'}
+              role="switch" aria-checked={!!value}
+              onClick={() => onChange(!value)}><i /></button>
+    </div>
+  );
+}
+
+function TweakRadio({ label, value, options, onChange }) {
+  const trackRef = React.useRef(null);
+  const [dragging, setDragging] = React.useState(false);
+  const opts = options.map((o) => (typeof o === 'object' ? o : { value: o, label: o }));
+  const idx = Math.max(0, opts.findIndex((o) => o.value === value));
+  const n = opts.length;
+
+  // The active value is read by pointer-move handlers attached for the lifetime
+  // of a drag — ref it so a stale closure doesn't fire onChange for every move.
+  const valueRef = React.useRef(value);
+  valueRef.current = value;
+
+  const segAt = (clientX) => {
+    const r = trackRef.current.getBoundingClientRect();
+    const inner = r.width - 4;
+    const i = Math.floor(((clientX - r.left - 2) / inner) * n);
+    return opts[Math.max(0, Math.min(n - 1, i))].value;
+  };
+
+  const onPointerDown = (e) => {
+    setDragging(true);
+    const v0 = segAt(e.clientX);
+    if (v0 !== valueRef.current) onChange(v0);
+    const move = (ev) => {
+      if (!trackRef.current) return;
+      const v = segAt(ev.clientX);
+      if (v !== valueRef.current) onChange(v);
+    };
+    const up = () => {
+      setDragging(false);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
+  return (
+    <TweakRow label={label}>
+      <div ref={trackRef} role="radiogroup" onPointerDown={onPointerDown}
+           className={dragging ? 'twk-seg dragging' : 'twk-seg'}>
+        <div className="twk-seg-thumb"
+             style={{ left: `calc(2px + ${idx} * (100% - 4px) / ${n})`,
+                      width: `calc((100% - 4px) / ${n})` }} />
+        {opts.map((o) => (
+          <button key={o.value} type="button" role="radio" aria-checked={o.value === value}>
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </TweakRow>
+  );
+}
+
+function TweakSelect({ label, value, options, onChange }) {
+  return (
+    <TweakRow label={label}>
+      <select className="twk-field" value={value} onChange={(e) => onChange(e.target.value)}>
+        {options.map((o) => {
+          const v = typeof o === 'object' ? o.value : o;
+          const l = typeof o === 'object' ? o.label : o;
+          return <option key={v} value={v}>{l}</option>;
+        })}
+      </select>
+    </TweakRow>
+  );
+}
+
+function TweakText({ label, value, placeholder, onChange }) {
+  return (
+    <TweakRow label={label}>
+      <input className="twk-field" type="text" value={value} placeholder={placeholder}
+             onChange={(e) => onChange(e.target.value)} />
+    </TweakRow>
+  );
+}
+
+function TweakNumber({ label, value, min, max, step = 1, unit = '', onChange }) {
+  const clamp = (n) => {
+    if (min != null && n < min) return min;
+    if (max != null && n > max) return max;
+    return n;
+  };
+  const startRef = React.useRef({ x: 0, val: 0 });
+  const onScrubStart = (e) => {
+    e.preventDefault();
+    startRef.current = { x: e.clientX, val: value };
+    const decimals = (String(step).split('.')[1] || '').length;
+    const move = (ev) => {
+      const dx = ev.clientX - startRef.current.x;
+      const raw = startRef.current.val + dx * step;
+      const snapped = Math.round(raw / step) * step;
+      onChange(clamp(Number(snapped.toFixed(decimals))));
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  return (
+    <div className="twk-num">
+      <span className="twk-num-lbl" onPointerDown={onScrubStart}>{label}</span>
+      <input type="number" value={value} min={min} max={max} step={step}
+             onChange={(e) => onChange(clamp(Number(e.target.value)))} />
+      {unit && <span className="twk-num-unit">{unit}</span>}
+    </div>
+  );
+}
+
+function TweakColor({ label, value, onChange }) {
+  return (
+    <div className="twk-row twk-row-h">
+      <div className="twk-lbl"><span>{label}</span></div>
+      <input type="color" className="twk-swatch" value={value}
+             onChange={(e) => onChange(e.target.value)} />
+    </div>
+  );
+}
+
+function TweakButton({ label, onClick, secondary = false }) {
+  return (
+    <button type="button" className={secondary ? 'twk-btn secondary' : 'twk-btn'}
+            onClick={onClick}>{label}</button>
+  );
+}
+
+Object.assign(window, {
+  useTweaks, TweaksPanel, TweakSection, TweakRow,
+  TweakSlider, TweakToggle, TweakRadio, TweakSelect,
+  TweakText, TweakNumber, TweakColor, TweakButton,
+});
+
+</script>
+  <script type="text/babel">
+// Blexa — brand marks + custom line icons.
+// All icons are 24×24 viewBox, stroke-only, 1.5px. No emoji.
+
+const Logo = ({ size = 22, variant = 'mark' }) => {
+  // variant: mark | wordmark | dot
+  if (variant === 'dot') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-label="blexa">
+        <circle cx="12" cy="12" r="10" fill="currentColor" />
+        <circle cx="12" cy="12" r="3" fill="var(--bg)" />
+      </svg>
+    );
+  }
+  if (variant === 'monogram') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-label="blexa">
+        <rect x="2" y="2" width="20" height="20" rx="5" fill="currentColor" />
+        <path d="M8 7v10M8 7h5a3 3 0 0 1 0 6H8M8 13h6a3 3 0 0 1 0 6H8" stroke="var(--bg)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  // default mark — a stylized aperture / scanner
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-label="blexa">
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M12 2v6M12 16v6M2 12h6M16 12h6M5 5l4.2 4.2M14.8 14.8L19 19M19 5l-4.2 4.2M9.2 14.8L5 19" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <circle cx="12" cy="12" r="2.4" fill="currentColor" />
+    </svg>
+  );
+};
+
+const Wordmark = ({ logoVariant = 'mark', size = 22 }) => (
+  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--fg)' }}>
+    <Logo variant={logoVariant} size={size} />
+    <span style={{
+      fontFamily: 'var(--font-sans)',
+      fontWeight: 500,
+      fontSize: size * 0.82,
+      letterSpacing: '-0.03em',
+      color: 'var(--fg)',
+    }}>blexa</span>
+  </span>
+);
+
+// ─── Custom line icons (24×24, stroke 1.5) ───────────────────────────────
+
+const Icon = {
+  arrow: (p) => <svg viewBox="0 0 24 24" fill="none" {...p}><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+  check: (p) => <svg viewBox="0 0 24 24" fill="none" {...p}><path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+  pin: (p) => <svg viewBox="0 0 24 24" fill="none" {...p}><path d="M12 21s7-6.5 7-12a7 7 0 1 0-14 0c0 5.5 7 12 7 12z" stroke="currentColor" strokeWidth="1.5"/><circle cx="12" cy="9.5" r="2.5" stroke="currentColor" strokeWidth="1.5"/></svg>,
+  search: (p) => <svg viewBox="0 0 24 24" fill="none" {...p}><circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.5"/><path d="m20 20-3.6-3.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
+  layers: (p) => <svg viewBox="0 0 24 24" fill="none" {...p}><path d="m12 3 9 5-9 5-9-5 9-5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/><path d="m3 13 9 5 9-5M3 18l9 5 9-5" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/></svg>,
+  spark: (p) => <svg viewBox="0 0 24 24" fill="none" {...p}><path d="M12 3v4M12 17v4M5 12H3M21 12h-2M6 6l1.5 1.5M16.5 16.5 18 18M6 18l1.5-1.5M16.5 7.5 18 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.5"/></svg>,
+  mail: (p) => <svg viewBox="0 0 24 24" fill="none" {...p}><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.5"/><path d="m3 7 9 6 9-6" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/></svg>,
+  users: (p) => <svg viewBox="0 0 24 24" fill="none" {...p}><circle cx="9" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><path d="M16 11.5a3 3 0 0 0 0-6M21.5 20a5.5 5.5 0 0 0-4-5.3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
+  filter: (p) => <svg viewBox="0 0 24 24" fill="none" {...p}><path d="M3 5h18M6 12h12M10 19h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
+  chart: (p) => <svg viewBox="0 0 24 24" fill="none" {...p}><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
+  shield: (p) => <svg viewBox="0 0 24 24" fill="none" {...p}><path d="M12 3 4 6v6c0 4.5 3.4 8.5 8 9 4.6-.5 8-4.5 8-9V6l-8-3z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/><path d="m9 12 2.2 2.2L15 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+  globe: (p) => <svg viewBox="0 0 24 24" fill="none" {...p}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5"/><path d="M3 12h18M12 3a13 13 0 0 1 0 18M12 3a13 13 0 0 0 0 18" stroke="currentColor" strokeWidth="1.5"/></svg>,
+  plus: (p) => <svg viewBox="0 0 24 24" fill="none" {...p}><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
+  minus: (p) => <svg viewBox="0 0 24 24" fill="none" {...p}><path d="M5 12h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
+  star: (p) => <svg viewBox="0 0 24 24" fill="currentColor" {...p}><path d="m12 2.5 2.95 6.2 6.8.78-5.05 4.65 1.4 6.7L12 17.7l-6.1 3.13 1.4-6.7L2.25 9.48l6.8-.78L12 2.5z"/></svg>,
+  zap: (p) => <svg viewBox="0 0 24 24" fill="none" {...p}><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/></svg>,
+  flame: (p) => <svg viewBox="0 0 24 24" fill="none" {...p}><path d="M12 2s5 4 5 9a5 5 0 0 1-10 0c0-2 1-3 1-3s2 1 2 3c0-3 2-5 2-9z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/></svg>,
+  lock: (p) => <svg viewBox="0 0 24 24" fill="none" {...p}><rect x="4" y="11" width="16" height="10" rx="2" stroke="currentColor" strokeWidth="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="currentColor" strokeWidth="1.5"/></svg>,
+  clock: (p) => <svg viewBox="0 0 24 24" fill="none" {...p}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5"/><path d="M12 7v5l3 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
+  warn: (p) => <svg viewBox="0 0 24 24" fill="none" {...p}><path d="M12 3 2 21h20L12 3z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/><path d="M12 10v5M12 18v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
+};
+
+Object.assign(window, { Logo, Wordmark, Icon });
+
+</script>
+  <script type="text/babel">
+// Hero section with live scanning demo + 5 layout variants
+
+const ITALIAN_CITIES = ['Milano', 'Roma', 'Napoli', 'Torino', 'Bologna', 'Firenze', 'Venezia', 'Genova', 'Verona', 'Bari'];
+const SAMPLE_LEADS = [
+  { name: 'Ristorante La Bussola', cat: 'Ristoranti', city: 'Napoli', region: 'Campania', score: 18 },
+  { name: 'Hotel Villa Aurora', cat: 'Hotel', city: 'Firenze', region: 'Toscana', score: 43 },
+  { name: 'Studio Legale Ferrara', cat: 'Studi Legali', city: 'Milano', region: 'Lombardia', score: 9 },
+  { name: 'Erboristeria Natura', cat: 'Erboristerie', city: 'Bologna', region: 'Emilia-Romagna', score: 52 },
+  { name: 'Pasticceria San Marco', cat: 'Pasticcerie', city: 'Venezia', region: 'Veneto', score: 24 },
+  { name: 'Officina Meccanica Rossi', cat: 'Officine', city: 'Torino', region: 'Piemonte', score: 31 },
+  { name: 'Boutique Eleganza', cat: 'Abbigliamento', city: 'Roma', region: 'Lazio', score: 14 },
+  { name: 'Centro Estetico Aura', cat: 'Estetica', city: 'Bari', region: 'Puglia', score: 38 },
+];
+
+const scoreClass = (s) => s < 40 ? 'low' : s < 70 ? 'mid' : 'high';
+const scoreLabel = (s) => s < 40 ? 'Alta' : s < 70 ? 'Media' : 'Bassa';
+
+// ─── Live scanning demo ───────────────────────────────────────────────────
+function ScanningDemo({ compact = false }) {
+  const [phase, setPhase] = React.useState('typing'); // typing → scanning → results
+  const [typed, setTyped] = React.useState('');
+  const [foundLeads, setFoundLeads] = React.useState([]);
+  const [cityIdx, setCityIdx] = React.useState(0);
+  const target = ITALIAN_CITIES[cityIdx];
+
+  React.useEffect(() => {
+    if (phase !== 'typing') return;
+    if (typed.length < target.length) {
+      const t = setTimeout(() => setTyped(target.slice(0, typed.length + 1)), 90);
+      return () => clearTimeout(t);
+    }
+    const t = setTimeout(() => setPhase('scanning'), 600);
+    return () => clearTimeout(t);
+  }, [typed, phase, target]);
+
+  React.useEffect(() => {
+    if (phase !== 'scanning') return;
+    setFoundLeads([]);
+    let i = 0;
+    const id = setInterval(() => {
+      i++;
+      setFoundLeads(SAMPLE_LEADS.slice(0, i));
+      if (i >= 4) {
+        clearInterval(id);
+        setTimeout(() => setPhase('results'), 600);
+      }
+    }, 280);
+    return () => clearInterval(id);
+  }, [phase]);
+
+  React.useEffect(() => {
+    if (phase !== 'results') return;
+    const t = setTimeout(() => {
+      setTyped('');
+      setFoundLeads([]);
+      setCityIdx((i) => (i + 1) % ITALIAN_CITIES.length);
+      setPhase('typing');
+    }, 4200);
+    return () => clearTimeout(t);
+  }, [phase]);
+
+  const sources = ['Pagine Gialle', 'OpenStreetMap', 'TripAdvisor', 'TheFork', 'Pagine Bianche', 'Infobel', 'Yelp', 'Google'];
+
+  return (
+    <div className="scanner">
+      <div className="scanner-chrome">
+        <div className="scanner-dots"><span/><span/><span/></div>
+        <div className="scanner-title mono">blexa · scanner</div>
+        <div className={`scanner-status ${phase}`}>
+          <span className="dot"/>{phase === 'typing' ? 'idle' : phase === 'scanning' ? 'scanning' : 'completed'}
+        </div>
+      </div>
+      <div className="scanner-bar">
+        <Icon.search width="14" height="14" style={{ color: 'var(--muted)', flexShrink: 0 }} />
+        <span className="mono scanner-input">
+          {typed}<span className={`caret ${phase === 'typing' ? 'on' : ''}`}>|</span>
+        </span>
+        <span className="scanner-cat mono">categoria: <b>ristoranti</b></span>
+      </div>
+      <div className="scanner-sources">
+        {sources.map((s, i) => (
+          <span key={s} className={`src mono ${phase !== 'typing' && i < (phase === 'scanning' ? foundLeads.length + 2 : 8) ? 'on' : ''}`}>
+            <span className="src-tick"/>{s}
+          </span>
+        ))}
+      </div>
+      <div className="scanner-results">
+        {SAMPLE_LEADS.slice(0, 4).map((lead, i) => {
+          const visible = foundLeads.length > i || phase === 'results';
+          return (
+            <div key={lead.name} className={`lead-row ${visible ? 'in' : ''}`} style={{ transitionDelay: `${i * 60}ms` }}>
+              <div className="lead-meta">
+                <div className="lead-name">{lead.name}</div>
+                <div className="lead-loc mono">
+                  <Icon.pin width="11" height="11" />
+                  {lead.city}, {lead.region}
+                </div>
+              </div>
+              <div className="lead-cat mono">{lead.cat}</div>
+              <div className={`score-chip ${scoreClass(lead.score)}`}>
+                <span className="mono" style={{fontSize: 10, opacity: 0.7}}>SCORE</span>
+                <b>{lead.score}</b>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="scanner-foot">
+        <div className="foot-stat">
+          <span className="mono small">Opportunità totali / mese</span>
+          <b className="mono">€ 4.380</b>
+        </div>
+        <div className="foot-pace">
+          <ScannerPulse active={phase === 'scanning'} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ScannerPulse({ active }) {
+  return (
+    <div className={`pulse-track ${active ? 'on' : ''}`}>
+      <div className="pulse-fill" />
+    </div>
+  );
+}
+
+// ─── Stats row under hero ─────────────────────────────────────────────────
+function HeroStats() {
+  return (
+    <div className="hero-stats">
+      <div className="hero-stat">
+        <b className="mono">8</b>
+        <span>fonti dati italiane</span>
+      </div>
+      <div className="hero-stat">
+        <b className="mono">100<sup>+</sup></b>
+        <span>colonne lead</span>
+      </div>
+      <div className="hero-stat">
+        <b className="mono">4</b>
+        <span>metriche del Digital Score</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Countdown ────────────────────────────────────────────────────────────
+function Countdown({ launchOffset = 14 }) {
+  const target = React.useMemo(() => {
+    const t = new Date();
+    t.setDate(t.getDate() + launchOffset);
+    t.setHours(10, 0, 0, 0);
+    return t.getTime();
+  }, [launchOffset]);
+  const [now, setNow] = React.useState(Date.now());
+  React.useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const diff = Math.max(0, target - now);
+  const d = Math.floor(diff / 86400000);
+  const h = Math.floor((diff % 86400000) / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  const s = Math.floor((diff % 60000) / 1000);
+  const fmt = (n) => String(n).padStart(2, '0');
+  return (
+    <div className="countdown mono">
+      <span className="cd-cell"><b>{fmt(d)}</b><i>g</i></span>
+      <span className="cd-sep">:</span>
+      <span className="cd-cell"><b>{fmt(h)}</b><i>h</i></span>
+      <span className="cd-sep">:</span>
+      <span className="cd-cell"><b>{fmt(m)}</b><i>m</i></span>
+      <span className="cd-sep">:</span>
+      <span className="cd-cell"><b>{fmt(s)}</b><i>s</i></span>
+    </div>
+  );
+}
+
+// ─── Email signup with validation ─────────────────────────────────────────
+function SignupForm({ size = 'md' }) {
+  const [email, setEmail] = React.useState('');
+  const [state, setState] = React.useState('idle'); // idle | error | success | duplicate | loading
+  const [touched, setTouched] = React.useState(false);
+  const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const submit = (e) => {
+    e.preventDefault();
+    setTouched(true);
+    if (!valid) { setState('error'); return; }
+    setState('loading');
+    if (window.handleWaitlistReact) {
+      window.handleWaitlistReact(email, (resState) => {
+        setState(resState);
+        setTimeout(() => setState('idle'), 4000);
+      });
+    } else {
+      setState('success');
+      setTimeout(() => setState('idle'), 4000);
+    }
+  };
+  return (
+    <form className={`signup-form ${state} ${size}`} onSubmit={submit} noValidate>
+      <input
+        type="email"
+        placeholder="la-tua-email@esempio.it"
+        value={email}
+        onChange={(e) => { setEmail(e.target.value); setState('idle'); }}
+        onBlur={() => setTouched(true)}
+      />
+      <button type="submit" className={`btn ${state === 'success' || state === 'duplicate' ? 'btn-accent' : 'btn-primary'}`} disabled={state === 'loading'}>
+        {state === 'success' ? <>In lista <Icon.check width="16" height="16"/></> : state === 'duplicate' ? <>Già iscritto!</> : state === 'loading' ? <>...</> : <>Prenota posto <Icon.arrow width="16" height="16"/></>}
+      </button>
+    </form>
+  );
+}
+
+// ─── Hero variants ────────────────────────────────────────────────────────
+
+function HeroV1_Split() {
+  return (
+    <section className="hero hero-split">
+      <div className="container hero-grid">
+        <div className="hero-copy">
+          <div className="pill" style={{ marginBottom: 24 }}>
+            <span className="pill-icon"><Icon.lock width="12" height="12"/></span>
+            Beta chiusa · Accesso anticipato
+          </div>
+          <h1>
+            I tuoi prossimi clienti<br/>
+            <span className="serif">esistono già.</span><br/>
+            Li stai cercando<br/>nel posto sbagliato.
+          </h1>
+          <p className="lead" style={{ marginTop: 28 }}>
+            Blexa scannerizza ogni angolo d'Italia, calcola il <b style={{color:'var(--fg)'}}>Digital Score</b> delle attività locali e ti consegna liste di lead qualificati pronti per il closing — in pochi minuti.
+          </p>
+          <div style={{ marginTop: 36 }}>
+            <SignupForm />
+          </div>
+          <div className="trust-row">
+            <span className="trust-item"><span className="trust-dot"/>Nessuna carta di credito</span>
+            <span className="trust-item"><span className="trust-dot"/>Accesso immediato</span>
+            <span className="trust-item"><span className="trust-dot"/>Cancella quando vuoi</span>
+          </div>
+          <div className="hero-social">
+            <div className="avatar-stack">
+              <span className="avatar a1">M</span>
+              <span className="avatar a2">A</span>
+              <span className="avatar a3">G</span>
+              <span className="avatar a4">R</span>
+            </div>
+            <span className="hero-social-text">
+              Già <b>73</b> professionisti in lista · Mancano <b className="mono accent-num">127</b> posti
+            </span>
+          </div>
+        </div>
+        <div className="hero-demo">
+          <ScanningDemo />
+        </div>
+      </div>
+      <div className="container">
+        <HeroStats />
+      </div>
+    </section>
+  );
+}
+
+function HeroV2_Centered() {
+  return (
+    <section className="hero hero-centered">
+      <div className="container-narrow" style={{ textAlign: 'center' }}>
+        <div className="pill" style={{ marginBottom: 32 }}>
+          <span className="pill-icon"><Icon.flame width="12" height="12"/></span>
+          127 posti rimasti · Lancio fra <Countdown launchOffset={9}/>
+        </div>
+        <h1 style={{ textWrap: 'balance' }}>
+          I tuoi prossimi clienti <span className="serif">esistono già.</span> Li stai cercando nel posto sbagliato.
+        </h1>
+        <p className="lead" style={{ margin: '28px auto 36px', textAlign: 'center' }}>
+          Blexa scannerizza ogni angolo d'Italia, calcola il Digital Score delle attività locali e ti consegna liste di lead qualificati pronti per il closing.
+        </p>
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <SignupForm />
+        </div>
+        <div className="trust-row" style={{ justifyContent: 'center' }}>
+          <span className="trust-item"><span className="trust-dot"/>Nessuna carta</span>
+          <span className="trust-item"><span className="trust-dot"/>Accesso immediato</span>
+          <span className="trust-item"><span className="trust-dot"/>Cancella quando vuoi</span>
+        </div>
+      </div>
+      <div className="container" style={{ marginTop: 80 }}>
+        <ScanningDemo />
+      </div>
+    </section>
+  );
+}
+
+function HeroV3_Editorial() {
+  return (
+    <section className="hero hero-editorial">
+      <div className="container">
+        <div className="editorial-grid">
+          <div className="editorial-left">
+            <div className="eyebrow">Lead Generation · Italia</div>
+          </div>
+          <div className="editorial-right">
+            <div className="eyebrow">No. 001 / Beta</div>
+          </div>
+        </div>
+        <h1 className="editorial-headline">
+          I tuoi prossimi <span className="serif">clienti</span><br/>
+          esistono già. <span className="serif">Li stai cercando</span><br/>
+          nel <s style={{textDecorationColor:'var(--accent)', textDecorationThickness:'3px'}}>posto sbagliato</s>.
+        </h1>
+        <div className="editorial-grid editorial-foot">
+          <div>
+            <p className="lead">Blexa scannerizza l'Italia, calcola il Digital Score di ogni attività locale e ti consegna liste di lead qualificati. In minuti.</p>
+            <div style={{ marginTop: 28 }}><SignupForm /></div>
+          </div>
+          <div className="editorial-meta">
+            <div className="meta-row"><span className="mono small">Fonti</span><b>8 italiane</b></div>
+            <div className="meta-row"><span className="mono small">Score</span><b>0–100 AI</b></div>
+            <div className="meta-row"><span className="mono small">Outreach</span><b>integrato</b></div>
+            <div className="meta-row"><span className="mono small">GDPR</span><b>conforme</b></div>
+          </div>
+        </div>
+        <div style={{ marginTop: 64 }}>
+          <ScanningDemo />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function HeroV4_Terminal() {
+  return (
+    <section className="hero hero-terminal">
+      <div className="container hero-grid">
+        <div className="hero-copy">
+          <div className="terminal-banner mono">
+            <span className="dot accent"/> blexa@beta:~$ <span className="terminal-cmd">scan --italia --score &lt; 40</span>
+          </div>
+          <h1>
+            Smetti di <span className="serif">cercare</span>.<br/>
+            Inizia a <span className="accent-text">chiudere</span>.
+          </h1>
+          <p className="lead" style={{ marginTop: 28 }}>
+            Blexa è il motore di prospecting per agenzie e freelancer italiani. Scannerizza, qualifica, invia. Tutto da un'unica dashboard.
+          </p>
+          <ul className="check-list">
+            <li><Icon.check width="18" height="18"/>8 fonti italiane in parallelo</li>
+            <li><Icon.check width="18" height="18"/>Digital Score AI per ogni lead</li>
+            <li><Icon.check width="18" height="18"/>Email broadcast da Gmail / Outlook / SMTP</li>
+          </ul>
+          <div style={{ marginTop: 32, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <a className="btn btn-primary btn-lg" href="#prezzi">Prenota posto gratuito <Icon.arrow width="16" height="16"/></a>
+            <a className="btn btn-ghost btn-lg" href="#come">Come funziona</a>
+          </div>
+        </div>
+        <div className="hero-demo">
+          <ScanningDemo />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function HeroV5_BigType() {
+  return (
+    <section className="hero hero-bigtype">
+      <div className="container">
+        <div className="bigtype-meta">
+          <div className="eyebrow">Beta · Italia · 73/200</div>
+          <Countdown launchOffset={9}/>
+        </div>
+        <h1 className="bigtype-headline">
+          <span className="bt-line">Trova clienti</span>
+          <span className="bt-line"><span className="serif">che hanno</span> bisogno</span>
+          <span className="bt-line">di te <span className="serif">— oggi</span>.</span>
+        </h1>
+        <div className="bigtype-grid">
+          <div>
+            <p className="lead">8 fonti italiane. Un Digital Score per ogni attività. Email broadcast integrato. Tutto da una dashboard.</p>
+            <div style={{ marginTop: 24 }}><SignupForm /></div>
+            <div className="trust-row">
+              <span className="trust-item"><span className="trust-dot"/>Senza carta</span>
+              <span className="trust-item"><span className="trust-dot"/>Disdici quando vuoi</span>
+            </div>
+          </div>
+          <div className="bigtype-demo">
+            <ScanningDemo compact />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+const HERO_VARIANTS = {
+  split: HeroV1_Split,
+  centered: HeroV2_Centered,
+  editorial: HeroV3_Editorial,
+  terminal: HeroV4_Terminal,
+  bigtype: HeroV5_BigType,
+};
+
+Object.assign(window, {
+  ScanningDemo, HeroStats, Countdown, SignupForm,
+  HeroV1_Split, HeroV2_Centered, HeroV3_Editorial, HeroV4_Terminal, HeroV5_BigType,
+  HERO_VARIANTS, SAMPLE_LEADS, scoreClass, scoreLabel,
+});
+
+</script>
+  <script type="text/babel">
+// Sections: Problem, Solution (3 steps), Features, Score, Pricing, Testimonials, FAQ, Footer
+
+// ─── Problem ──────────────────────────────────────────────────────────────
+function ProblemSection() {
+  const items = [
+    {
+      icon: 'clock',
+      title: 'Ore perse nella ricerca',
+      body: 'Cerchi manualmente su Google, Pagine Gialle, mappe. Un lavoro che richiede ore per trovare qualche decina di lead di qualità dubbia.',
+      stat: '~12h / sett',
+    },
+    {
+      icon: 'warn',
+      title: 'Lead non qualificati',
+      body: 'Contatti imprese che hanno già un sito decente, o che non hanno bisogno dei tuoi servizi. Zero conversioni, tanta frustrazione.',
+      stat: '< 2% reply',
+    },
+    {
+      icon: 'chart',
+      title: 'Pipeline vuota, entrate instabili',
+      body: 'Senza un flusso costante di nuovi prospect, le entrate dipendono dal passaparola. Un modello fragile che non scala.',
+      stat: 'No scale',
+    },
+  ];
+  return (
+    <section className="section section-problem" id="problema">
+      <div className="container">
+        <div className="section-head">
+          <div>
+            <div className="eyebrow">Il problema</div>
+            <h2 className="section-title">
+              Stai ancora cercando<br/>
+              <span className="serif">clienti uno per uno?</span>
+            </h2>
+          </div>
+          <p className="lead">
+            Ogni ora che passi a cercare manualmente è un'ora che non stai chiudendo contratti. Le agenzie web e i freelancer italiani perdono decine di ore al mese su attività che un software può fare in minuti.
+          </p>
+        </div>
+        <div className="problem-grid">
+          {items.map((it, i) => {
+            const I = Icon[it.icon];
+            return (
+              <div key={i} className="problem-card">
+                <div className="problem-num mono">{String(i + 1).padStart(2, '0')}</div>
+                <div className="problem-icon"><I width="22" height="22"/></div>
+                <h3>{it.title}</h3>
+                <p>{it.body}</p>
+                <div className="problem-stat mono">{it.stat}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Solution (3 steps) ───────────────────────────────────────────────────
+function SolutionSection() {
+  const steps = [
+    {
+      n: '01',
+      title: 'Scegli città e categoria',
+      body: 'Indica una o più città italiane e il tipo di attività (ristoranti, studi legali, hotel, negozi…). Blexa fa il resto su 8 fonti in parallelo.',
+      illustration: <StepIllustration1 />,
+    },
+    {
+      n: '02',
+      title: 'Blexa calcola il Digital Score',
+      body: "Il motore di audit analizza ogni sito web: SEO, mobile, design, contenuti. Assegna un punteggio 0-100. Più è basso, più è un'opportunità per te.",
+      illustration: <StepIllustration2 />,
+    },
+    {
+      n: '03',
+      title: 'Ricevi lead + outreach',
+      body: 'Ottieni una lista filtrata con email, telefono, indirizzo e score. Invia campagne email personalizzate da Blexa. Traccia le risposte e chiudi.',
+      illustration: <StepIllustration3 />,
+    },
+  ];
+  return (
+    <section className="section section-solution" id="come">
+      <div className="container">
+        <div className="section-head">
+          <div>
+            <div className="eyebrow">La soluzione</div>
+            <h2 className="section-title">
+              Blexa lavora per te.<br/>
+              <span className="serif">Tu chiudi i contratti.</span>
+            </h2>
+          </div>
+          <p className="lead">
+            In 3 passi trasformiamo ogni città italiana in una miniera di opportunità qualificate pronte per il closing.
+          </p>
+        </div>
+        <div className="steps">
+          {steps.map((s, i) => (
+            <div key={i} className="step">
+              <div className="step-illustration">{s.illustration}</div>
+              <div className="step-meta">
+                <span className="step-n mono">{s.n}</span>
+                <span className="step-line"/>
+              </div>
+              <h3 className="step-title">{s.title}</h3>
+              <p className="step-body">{s.body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function StepIllustration1() {
+  return (
+    <svg viewBox="0 0 280 160" fill="none" xmlns="http://www.w3.org/2000/svg" className="ill">
+      <rect x="0.5" y="0.5" width="279" height="159" rx="11.5" fill="var(--bg-tint)" stroke="var(--line)"/>
+      <rect x="20" y="22" width="240" height="36" rx="8" fill="var(--bg-elev)" stroke="var(--line)"/>
+      <text x="34" y="44" fontFamily="var(--font-mono)" fontSize="12" fill="var(--fg)">Milano, Roma, Napoli</text>
+      <rect x="200" y="30" width="48" height="20" rx="10" fill="var(--fg)"/>
+      <text x="224" y="44" fontFamily="var(--font-mono)" fontSize="10" fill="var(--bg)" textAnchor="middle">Cerca</text>
+      <rect x="20" y="70" width="62" height="22" rx="11" fill="var(--accent-tint)" stroke="rgba(220,38,38,0.18)"/>
+      <text x="51" y="84" fontFamily="var(--font-mono)" fontSize="10" fill="#b91c1c" textAnchor="middle">ristoranti</text>
+      <rect x="86" y="70" width="58" height="22" rx="11" fill="var(--bg-elev)" stroke="var(--line-2)"/>
+      <text x="115" y="84" fontFamily="var(--font-mono)" fontSize="10" fill="var(--muted)" textAnchor="middle">hotel</text>
+      <rect x="148" y="70" width="78" height="22" rx="11" fill="var(--bg-elev)" stroke="var(--line-2)"/>
+      <text x="187" y="84" fontFamily="var(--font-mono)" fontSize="10" fill="var(--muted)" textAnchor="middle">studi legali</text>
+      <g opacity="0.8">
+        <path d="M30 120 Q70 100, 110 118 T200 110 T260 122" stroke="var(--accent)" strokeWidth="1.2" strokeDasharray="3 3" fill="none"/>
+        <circle cx="50" cy="115" r="3" fill="var(--accent)"/>
+        <circle cx="120" cy="116" r="3" fill="var(--accent)"/>
+        <circle cx="190" cy="111" r="3" fill="var(--accent)"/>
+        <circle cx="240" cy="118" r="3" fill="var(--accent)"/>
+      </g>
+    </svg>
+  );
+}
+
+function StepIllustration2() {
+  return (
+    <svg viewBox="0 0 280 160" fill="none" className="ill">
+      <rect x="0.5" y="0.5" width="279" height="159" rx="11.5" fill="var(--bg-tint)" stroke="var(--line)"/>
+      <circle cx="140" cy="80" r="48" stroke="var(--line-2)" strokeWidth="1.5" fill="var(--bg-elev)"/>
+      <circle cx="140" cy="80" r="48" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round"
+              strokeDasharray="180 360" transform="rotate(-90 140 80)"/>
+      <text x="140" y="76" fontFamily="var(--font-mono)" fontSize="32" fill="var(--fg)" textAnchor="middle" fontWeight="500">17</text>
+      <text x="140" y="94" fontFamily="var(--font-mono)" fontSize="9" fill="var(--muted)" textAnchor="middle" letterSpacing="1">SCORE</text>
+      <g fontFamily="var(--font-mono)" fontSize="9" fill="var(--muted)">
+        <text x="220" y="50">SEO 12</text>
+        <text x="220" y="78">MOBILE 28</text>
+        <text x="220" y="106">DESIGN 18</text>
+        <text x="220" y="134">CONTENT 8</text>
+      </g>
+      <g stroke="var(--line-2)" strokeWidth="1">
+        <line x1="190" y1="46" x2="216" y2="46"/>
+        <line x1="190" y1="74" x2="216" y2="74"/>
+        <line x1="190" y1="102" x2="216" y2="102"/>
+        <line x1="190" y1="130" x2="216" y2="130"/>
+      </g>
+    </svg>
+  );
+}
+
+function StepIllustration3() {
+  return (
+    <svg viewBox="0 0 280 160" fill="none" className="ill">
+      <rect x="0.5" y="0.5" width="279" height="159" rx="11.5" fill="var(--bg-tint)" stroke="var(--line)"/>
+      <rect x="20" y="20" width="160" height="36" rx="8" fill="var(--bg-elev)" stroke="var(--line)"/>
+      <circle cx="38" cy="38" r="9" fill="var(--accent-tint)"/>
+      <text x="38" y="42" fontFamily="var(--font-sans)" fontSize="11" fill="#b91c1c" textAnchor="middle" fontWeight="600">M</text>
+      <rect x="54" y="32" width="80" height="4" rx="2" fill="var(--fg-2)" opacity="0.6"/>
+      <rect x="54" y="40" width="100" height="3" rx="1.5" fill="var(--muted-2)" opacity="0.6"/>
+      <rect x="20" y="62" width="160" height="36" rx="8" fill="var(--bg-elev)" stroke="var(--line)"/>
+      <circle cx="38" cy="80" r="9" fill="rgba(21,128,61,0.15)"/>
+      <text x="38" y="84" fontFamily="var(--font-sans)" fontSize="11" fill="#15803d" textAnchor="middle" fontWeight="600">A</text>
+      <rect x="54" y="74" width="65" height="4" rx="2" fill="var(--fg-2)" opacity="0.6"/>
+      <rect x="54" y="82" width="90" height="3" rx="1.5" fill="var(--muted-2)" opacity="0.6"/>
+      <rect x="20" y="104" width="160" height="36" rx="8" fill="var(--bg-elev)" stroke="var(--line)"/>
+      <circle cx="38" cy="122" r="9" fill="rgba(180,83,9,0.15)"/>
+      <text x="38" y="126" fontFamily="var(--font-sans)" fontSize="11" fill="#92400e" textAnchor="middle" fontWeight="600">G</text>
+      <rect x="54" y="116" width="72" height="4" rx="2" fill="var(--fg-2)" opacity="0.6"/>
+      <rect x="54" y="124" width="84" height="3" rx="1.5" fill="var(--muted-2)" opacity="0.6"/>
+      <g>
+        <rect x="200" y="40" width="60" height="80" rx="10" fill="var(--fg)"/>
+        <path d="M210 60 L230 76 L250 60" stroke="var(--bg)" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+        <rect x="208" y="56" width="44" height="32" rx="3" stroke="var(--bg)" strokeWidth="1.2" fill="none"/>
+        <text x="230" y="106" fontFamily="var(--font-mono)" fontSize="9" fill="var(--bg)" textAnchor="middle">3 inviate</text>
+      </g>
+    </svg>
+  );
+}
+
+// ─── Features ─────────────────────────────────────────────────────────────
+function FeaturesSection() {
+  const features = [
+    { icon: 'layers', title: 'Scanner multi-fonte', body: '8 fonti dati italiane in parallelo: Pagine Gialle, TripAdvisor, OSM, TheFork, Infobel e altro. Massima copertura del territorio.' },
+    { icon: 'spark', title: 'Digital Score AI', body: 'Punteggio 0-100 calcolato su SEO, mobile-first, design e qualità contenuti. Identifica istantaneamente le migliori opportunità.' },
+    { icon: 'mail', title: 'Email broadcast', body: 'Invia campagne personalizzate dal tuo Gmail, Outlook o SMTP custom. Template variabili per ogni lead.' },
+    { icon: 'users', title: 'CRM integrato', body: 'Gestisci lo stato di ogni lead: nuovo, contattato, interessato, chiuso. Note, tag personalizzati, storico attività.' },
+    { icon: 'filter', title: 'Filtri avanzati', body: 'Filtra per città, quartiere, categoria, range di Digital Score, presenza email, tipo sito. Trova il cliente ideale.' },
+    { icon: 'chart', title: 'Analytics campagne', body: 'Tassi di apertura, risposte e conversioni per ogni campagna. Sincronizzazione IMAP automatica delle risposte.' },
+    { icon: 'shield', title: 'GDPR compliant', body: 'Dati pubblici da directory ufficiali. Conforme al Regolamento Europeo 2016/679. Server in Europa.' },
+    { icon: 'globe', title: 'Copertura nazionale', body: 'Ogni comune italiano, dal centro storico al piccolo paese. Nessun limite geografico: scala su tutto il territorio.' },
+  ];
+  return (
+    <section className="section section-features" id="funzionalita">
+      <div className="container">
+        <div className="section-head">
+          <div>
+            <div className="eyebrow">Funzionalità</div>
+            <h2 className="section-title">
+              Tutto quello che serve.<br/>
+              <span className="serif">Niente di superfluo.</span>
+            </h2>
+          </div>
+        </div>
+        <div className="features-grid">
+          {features.map((f, i) => {
+            const I = Icon[f.icon];
+            return (
+              <div key={i} className="feature">
+                <div className="feature-icon"><I width="22" height="22"/></div>
+                <h3>{f.title}</h3>
+                <p>{f.body}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Digital Score (animated on scroll) ───────────────────────────────────
+function ScoreSection() {
+  const ref = React.useRef(null);
+  const [progress, setProgress] = React.useState(0); // 0..1
+  const [interactive, setInteractive] = React.useState(false);
+  const [scores, setScores] = React.useState({ seo: 12, mobile: 28, design: 18, content: 8 });
+
+  React.useEffect(() => {
+    const onScroll = () => {
+      if (!ref.current || interactive) return;
+      const r = ref.current.getBoundingClientRect();
+      const winH = window.innerHeight;
+      const total = r.height + winH * 0.5;
+      const t = Math.max(0, Math.min(1, (winH - r.top) / total));
+      setProgress(t);
+    };
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [interactive]);
+
+  const targets = { seo: 12, mobile: 28, design: 18, content: 8 };
+  const animated = interactive ? scores : {
+    seo: Math.round(targets.seo * progress),
+    mobile: Math.round(targets.mobile * progress),
+    design: Math.round(targets.design * progress),
+    content: Math.round(targets.content * progress),
+  };
+  const total = Math.round((animated.seo + animated.mobile + animated.design + animated.content) / 4);
+
+  const opportunity = total < 40 ? { label: 'Opportunità Alta', tone: 'low' }
+    : total < 70 ? { label: 'Opportunità Media', tone: 'mid' }
+    : { label: 'Già digitalizzato', tone: 'high' };
+
+  return (
+    <section className="section section-score" id="score" ref={ref}>
+      <div className="container">
+        <div className="section-head">
+          <div>
+            <div className="eyebrow">Come funziona</div>
+            <h2 className="section-title">
+              Il <span className="serif">Digital Score</span><br/>
+              che fa la differenza
+            </h2>
+          </div>
+          <p className="lead">
+            Non tutti i lead valgono uguale. Il Digital Score misura la debolezza digitale di ogni attività su 4 dimensioni: più è basso, più è pronta ad acquistare il tuo servizio.
+          </p>
+        </div>
+
+        <div className="score-grid">
+          <div className="score-visual">
+            <div className="score-card">
+              <ScoreRing value={total} tone={opportunity.tone} />
+              <div className="score-meta">
+                <div className="mono small">DIGITAL SCORE</div>
+                <div className={`score-opp tone-${opportunity.tone}`}>
+                  <span className="dot"/>{opportunity.label}
+                </div>
+              </div>
+            </div>
+            <div className="score-bars">
+              {[
+                ['SEO', animated.seo, 100, 'seo'],
+                ['Mobile', animated.mobile, 100, 'mobile'],
+                ['Design', animated.design, 100, 'design'],
+                ['Content', animated.content, 100, 'content'],
+              ].map(([label, val, max, key]) => (
+                <div key={label} className="score-bar-row">
+                  <div className="score-bar-label">
+                    <span>{label}</span>
+                    <span className="mono">{val}</span>
+                  </div>
+                  <div className="score-bar">
+                    <div className="score-bar-fill" style={{ width: `${val}%` }} />
+                  </div>
+                  {interactive && (
+                    <input type="range" min="0" max="100" value={val} className="score-range"
+                           onChange={(e) => setScores({ ...scores, [key]: Number(e.target.value) })}/>
+                  )}
+                </div>
+              ))}
+              <button className="score-toggle" onClick={() => setInteractive(!interactive)}>
+                {interactive ? 'Reset animazione' : 'Prova tu →'}
+              </button>
+            </div>
+          </div>
+
+          <div className="score-legend">
+            <h3 style={{ fontWeight: 500, fontSize: 14, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 24 }}>
+              Come leggere il score
+            </h3>
+            <div className="legend-row">
+              <div className="legend-range mono"><span className="dot tone-low"/>0–39</div>
+              <div className="legend-text">
+                <b>Opportunità Alta</b>
+                <p>Presenza digitale quasi assente. Massima probabilità di conversione. Cliente ideale per siti web, SEO, social.</p>
+              </div>
+            </div>
+            <div className="legend-row">
+              <div className="legend-range mono"><span className="dot tone-mid"/>40–69</div>
+              <div className="legend-text">
+                <b>Opportunità Media</b>
+                <p>Sito presente ma migliorabile. Ottimo per restyling, SEO o campagne adv.</p>
+              </div>
+            </div>
+            <div className="legend-row">
+              <div className="legend-range mono"><span className="dot tone-high"/>70–100</div>
+              <div className="legend-text">
+                <b>Già digitalizzato</b>
+                <p>Sito ottimizzato. Puoi escluderlo o proporre servizi avanzati (ads, automazioni, CRM).</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ScoreRing({ value, tone }) {
+  const r = 76;
+  const C = 2 * Math.PI * r;
+  const frac = value / 100;
+  const color = tone === 'low' ? 'var(--accent)' : tone === 'mid' ? '#b45309' : '#15803d';
+  return (
+    <svg width="200" height="200" viewBox="0 0 200 200" className="score-ring">
+      <circle cx="100" cy="100" r={r} stroke="var(--line)" strokeWidth="2" fill="none"/>
+      <circle cx="100" cy="100" r={r} stroke={color} strokeWidth="6" fill="none"
+              strokeLinecap="round"
+              strokeDasharray={`${C * frac} ${C}`}
+              transform="rotate(-90 100 100)"
+              style={{ transition: 'stroke-dasharray 600ms cubic-bezier(.2,.6,.2,1)' }}/>
+      <text x="100" y="104" fontFamily="var(--font-mono)" fontSize="56" fill="var(--fg)" textAnchor="middle" fontWeight="500" letterSpacing="-2">{value}</text>
+      <text x="100" y="128" fontFamily="var(--font-mono)" fontSize="10" fill="var(--muted)" textAnchor="middle" letterSpacing="2">/ 100</text>
+    </svg>
+  );
+}
+
+// ─── Pricing ──────────────────────────────────────────────────────────────
+function PricingSection({ style = 'cards' }) {
+  const [billing, setBilling] = React.useState('monthly'); // monthly | yearly
+  const factor = billing === 'yearly' ? 10 : 1;
+  const fmt = (n) => `€${n}`;
+  return (
+    <section className="section section-pricing" id="prezzi">
+      <div className="container">
+        <div className="section-head section-head-center">
+          <div className="eyebrow">Prezzi</div>
+          <h2 className="section-title">
+            Entra in beta.<br/>
+            <span className="serif">Blocca il prezzo per sempre.</span>
+          </h2>
+          <p className="lead">
+            I primi 200 beta tester pagano €39/mese per sempre. Poi il prezzo sale a €89/mese.
+          </p>
+          <div className="billing-toggle">
+            <button className={billing === 'monthly' ? 'on' : ''} onClick={() => setBilling('monthly')}>Mensile</button>
+            <button className={billing === 'yearly' ? 'on' : ''} onClick={() => setBilling('yearly')}>
+              Annuale <span className="tag" style={{marginLeft:8}}>−2 mesi</span>
+            </button>
+          </div>
+        </div>
+
+        <div className={`pricing-grid pricing-${style}`}>
+          {/* Standard plan */}
+          <div className="price-card price-card-standard">
+            <div className="price-head">
+              <h3>Standard</h3>
+              <span className="tag">Dal lancio</span>
+            </div>
+            <div className="price-amount">
+              <span className="amt mono">{fmt(89 * factor)}</span>
+              <span className="per">{billing === 'monthly' ? '/mese' : '/anno'}</span>
+            </div>
+            <p className="price-note">Disponibile dal lancio ufficiale.</p>
+            <ul className="price-list">
+              <li><Icon.check width="16" height="16"/>Scanner multi-fonte illimitato</li>
+              <li><Icon.check width="16" height="16"/>Digital Score + Audit completo</li>
+              <li><Icon.check width="16" height="16"/>Email broadcast</li>
+              <li><Icon.check width="16" height="16"/>CRM integrato</li>
+              <li><Icon.check width="16" height="16"/>Supporto email</li>
+            </ul>
+            <button className="btn btn-ghost btn-lg" disabled style={{ width: '100%' }}>Aspetta il lancio</button>
+          </div>
+
+          {/* Beta plan */}
+          <div className="price-card price-card-beta">
+            <div className="ribbon mono"><Icon.flame width="11" height="11"/> Early Bird · Solo 200 posti</div>
+            <div className="price-head">
+              <h3>Beta Tester</h3>
+              <span className="tag tag-accent mono">−56%</span>
+            </div>
+            <div className="price-amount">
+              <span className="amt-strike mono">{fmt(89 * factor)}</span>
+              <span className="amt mono accent-num">{fmt(39 * factor)}</span>
+              <span className="per">{billing === 'monthly' ? '/mese' : '/anno'}</span>
+            </div>
+            <p className="price-note">Prezzo bloccato per sempre. Risparmi il 56% — per sempre.</p>
+            <ul className="price-list">
+              <li><Icon.check width="16" height="16"/>Tutto del piano Standard</li>
+              <li><Icon.check width="16" height="16"/>Accesso beta immediato</li>
+              <li><Icon.check width="16" height="16"/>Influenza il product roadmap</li>
+              <li><Icon.check width="16" height="16"/>Badge "Founding Member"</li>
+              <li><Icon.check width="16" height="16"/>Supporto prioritario</li>
+            </ul>
+            <button className="btn btn-primary btn-lg" style={{ width: '100%' }}>
+              Prenota per {fmt(39 * factor)}{billing === 'monthly' ? '/mese' : '/anno'}
+              <Icon.arrow width="16" height="16"/>
+            </button>
+            <p className="price-fineprint">Nessun addebito ora · Carta di credito solo al lancio</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Testimonials ─────────────────────────────────────────────────────────
+function TestimonialsSection() {
+  const items = [
+    {
+      quote: 'In 20 minuti ho trovato 47 ristoranti nella mia città con Digital Score sotto 30. Ho mandato 30 email e ho già 4 risposte positive. ROI immediato.',
+      name: 'Marco R.', role: 'Web Designer Freelancer · Milano', initial: 'M', a: 'a1',
+      stat: { v: '4', l: 'risposte / 30' },
+    },
+    {
+      quote: "Finalmente uno strumento pensato per il mercato italiano. Pagine Gialle + TripAdvisor in un'unica lista con il sito già analizzato. Brillante.",
+      name: 'Alessia T.', role: 'Titolare Agenzia Web · Napoli', initial: 'A', a: 'a3',
+      stat: { v: '8h', l: 'risparmiate / sett' },
+    },
+    {
+      quote: 'Ho azzerato il tempo dedicato alla ricerca clienti. Ogni lunedì mattina lancio una scansione, filtro i low-score e la settimana ha già senso. Produttività +300%.',
+      name: 'Giovanni P.', role: 'SEO Consultant · Roma', initial: 'G', a: 'a2',
+      stat: { v: '+300%', l: 'produttività' },
+    },
+  ];
+  return (
+    <section className="section section-testimonials" id="testimonianze">
+      <div className="container">
+        <div className="section-head">
+          <div>
+            <div className="eyebrow">Testimonianze</div>
+            <h2 className="section-title">
+              Cosa dicono i nostri<br/>
+              <span className="serif">beta tester</span>
+            </h2>
+          </div>
+          <p className="lead">I primi professionisti ad accedere hanno già condiviso la loro esperienza.</p>
+        </div>
+        <div className="testimonials-grid">
+          {items.map((t, i) => (
+            <div key={i} className="testimonial">
+              <div className="stars">
+                {[0,1,2,3,4].map(k => <Icon.star key={k} width="14" height="14" style={{color:'#b45309'}}/>)}
+              </div>
+              <blockquote>{t.quote}</blockquote>
+              <div className="testimonial-foot">
+                <div className="testimonial-author">
+                  <span className={`avatar ${t.a}`} style={{ width: 36, height: 36, fontSize: 13, marginLeft: 0 }}>{t.initial}</span>
+                  <div>
+                    <b>{t.name}</b>
+                    <span>{t.role}</span>
+                  </div>
+                </div>
+                <div className="testimonial-stat">
+                  <b className="mono">{t.stat.v}</b>
+                  <span className="mono">{t.stat.l}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── FAQ ──────────────────────────────────────────────────────────────────
+function FAQSection() {
+  const items = [
+    { q: "Cosa succede dopo che entro in beta?", a: "Ricevi immediatamente l'accesso alla dashboard e puoi lanciare la prima scansione. Non addebitiamo nulla finché non lanciamo ufficialmente; al lancio sblocchi il prezzo €39/mese per sempre, con possibilità di disdire in qualsiasi momento." },
+    { q: 'I dati sono conformi al GDPR?', a: 'Sì. Blexa raccoglie esclusivamente dati pubblici da directory ufficiali italiane (Pagine Gialle, OpenStreetMap, TripAdvisor, ecc.). Nessuna scraping di dati privati. Server in Europa, conforme al Regolamento UE 2016/679.' },
+    { q: 'Posso integrare il mio account email?', a: 'Sì. Connetti Gmail, Outlook o un server SMTP custom. Le email vengono inviate dal tuo dominio, mantenendo deliverability e branding. Le risposte vengono sincronizzate via IMAP nel CRM.' },
+    { q: 'Quante città posso scansionare?', a: 'Illimitate. Ogni piano include scansioni illimitate su tutti i comuni italiani. Pianifica scan ricorrenti settimanali o mensili.' },
+    { q: 'Cosa succede se cancello?', a: 'Mantieni accesso fino alla fine del periodo già pagato. Esporti tutti i tuoi lead in CSV. Nessuna penale, nessun vincolo.' },
+    { q: 'Come viene calcolato il Digital Score?', a: 'Il motore analizza 4 dimensioni del sito di ogni attività: SEO tecnico, esperienza mobile, qualità del design, profondità dei contenuti. Aggrega i punteggi in un valore 0–100 dove più basso = più opportunità.' },
+  ];
+  const [open, setOpen] = React.useState(0);
+  return (
+    <section className="section section-faq" id="faq">
+      <div className="container-narrow">
+        <div className="section-head section-head-center">
+          <div className="eyebrow">FAQ</div>
+          <h2 className="section-title">
+            Hai domande?<br/>
+            <span className="serif">Abbiamo le risposte.</span>
+          </h2>
+        </div>
+        <div className="faq-list">
+          {items.map((it, i) => (
+            <div key={i} className={`faq-item ${open === i ? 'open' : ''}`}>
+              <button className="faq-q" onClick={() => setOpen(open === i ? -1 : i)}>
+                <span>{it.q}</span>
+                <span className="faq-icon">
+                  {open === i ? <Icon.minus width="18" height="18"/> : <Icon.plus width="18" height="18"/>}
+                </span>
+              </button>
+              <div className="faq-a-wrap">
+                <p className="faq-a">{it.a}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Final CTA ────────────────────────────────────────────────────────────
+function FinalCTASection() {
+  return (
+    <section className="section section-final-cta">
+      <div className="container">
+        <div className="final-cta">
+          <div className="final-cta-meta">
+            <span className="mono small">Lancio fra</span>
+            <Countdown launchOffset={9}/>
+          </div>
+          <h2>
+            Mancano <span className="accent-num mono">127</span> posti.<br/>
+            <span className="serif">Entra in beta prima che sia tardi.</span>
+          </h2>
+          <p className="lead">Ogni giorno che aspetti è un giorno in cui qualcuno ha già trovato i tuoi potenziali clienti.</p>
+          <div className="final-form">
+            <SignupForm />
+          </div>
+          <div className="seats-bar">
+            <div className="seats-track">
+              <div className="seats-fill" style={{ width: '36.5%' }}/>
+            </div>
+            <div className="seats-text mono">
+              <span><b>73</b> posti occupati</span>
+              <span><b>200</b> totali</span>
+            </div>
+          </div>
+          <p className="footnote">Nessuna carta di credito ora · Cancella quando vuoi · Dati al sicuro</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Footer ───────────────────────────────────────────────────────────────
+function Footer({ logoVariant }) {
+  return (
+    <footer className="footer">
+      <div className="container">
+        <div className="footer-top">
+          <div>
+            <Wordmark logoVariant={logoVariant} size={28} />
+            <p className="footer-tag">
+              Lead generation per agenzie web e freelancer in Italia.<br/>
+              <span className="mono small">Fatto con cura in Italia.</span>
+            </p>
+          </div>
+          <div className="footer-cols">
+            <div>
+              <h4>Prodotto</h4>
+              <a href="#funzionalita">Funzionalità</a>
+              <a href="#score">Digital Score</a>
+              <a href="#prezzi">Prezzi</a>
+              <a href="#faq">FAQ</a>
+            </div>
+            <div>
+              <h4>Risorse</h4>
+              <a href="#">Blog</a>
+              <a href="#">Casi studio</a>
+              <a href="#">Documentazione</a>
+              <a href="#">API</a>
+            </div>
+            <div>
+              <h4>Azienda</h4>
+              <a href="#">Chi siamo</a>
+              <a href="#">Contatti</a>
+              <a href="privacy.html">Privacy</a>
+              <a href="cookie.html">Cookie</a>
+              <a href="terms.html">Termini</a>
+              <a href="#" onClick={(e) => { e.preventDefault(); window.__gdprOpenSettings && window.__gdprOpenSettings(); }}>Gestisci Cookie</a>
+            </div>
+          </div>
+        </div>
+        <div className="footer-bottom">
+          <span className="mono small">© 2026 Blexa S.r.l. · Tutti i diritti riservati</span>
+          <span className="mono small">P.IVA IT12345678901 · GDPR · ISO 27001</span>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+Object.assign(window, {
+  ProblemSection, SolutionSection, FeaturesSection, ScoreSection,
+  PricingSection, TestimonialsSection, FAQSection, FinalCTASection, Footer,
+});
+
+</script>
 
   <script type="text/babel">
     const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
