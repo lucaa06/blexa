@@ -2,21 +2,21 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
 
 :root {
-  --blue:     #0050FF;
-  --blue-2:   #3377FF;
-  --blue-lt:  #EEF3FF;
+  --blue:     #7C3AED;
+  --blue-2:   #9461F5;
+  --blue-lt:  #F3EEFF;
   --cyan:     #00B4D8;
   --cyan-lt:  #E8F9FC;
   --green:    #10B981;
-  --bg:       #F5F7FF;
+  --bg:       #F7F5FF;
   --surface:  #FFFFFF;
-  --border:   #DDE4F5;
-  --text:     #07091A;
-  --muted:    #5A637A;
-  --light:    #A4AFC8;
-  --shadow:   0 2px 20px rgba(0,40,160,.06);
-  --shadow-md:0 8px 40px rgba(0,40,160,.10);
-  --shadow-xl:0 20px 80px rgba(0,40,160,.14);
+  --border:   #E2DBF5;
+  --text:     #0D0720;
+  --muted:    #5A537A;
+  --light:    #AEA4C8;
+  --shadow:   0 2px 20px rgba(80,20,180,.06);
+  --shadow-md:0 8px 40px rgba(80,20,180,.10);
+  --shadow-xl:0 20px 80px rgba(80,20,180,.14);
   --r:        16px;
   --r-lg:     24px;
   --fh:       "Space Grotesk", sans-serif;
@@ -33,7 +33,7 @@ button,input,select{font-family:inherit}
 /* ── NAV ───────────────────────────── */
 #nav{
   position:fixed;top:0;left:0;right:0;z-index:200;
-  background:rgba(245,247,255,.88);
+  background:rgba(247,245,255,.88);
   border-bottom:1px solid transparent;
   backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
   transition:border-color .3s,box-shadow .3s;
@@ -53,7 +53,7 @@ button,input,select{font-family:inherit}
   padding:9px 22px !important;border-radius:10px !important;
   font-weight:600 !important;transition:transform .2s,box-shadow .2s !important;
 }
-.btn-nav:hover{transform:translateY(-2px) !important;box-shadow:0 6px 24px rgba(0,80,255,.35) !important}
+.btn-nav:hover{transform:translateY(-2px) !important;box-shadow:0 6px 24px rgba(124,58,237,.35) !important}
 
 /* ── HERO ──────────────────────────── */
 .hero{
@@ -63,14 +63,14 @@ button,input,select{font-family:inherit}
 }
 .hero::before{
   content:"";position:absolute;width:700px;height:700px;border-radius:50%;
-  background:radial-gradient(circle,rgba(0,80,255,.08) 0%,transparent 70%);
+  background:radial-gradient(circle,rgba(124,58,237,.08) 0%,transparent 70%);
   top:-200px;right:-200px;pointer-events:none;
 }
 .hero-badge{
   display:inline-flex;align-items:center;gap:8px;
   background:var(--blue-lt);color:var(--blue);
   padding:7px 15px;border-radius:100px;font-size:.78rem;font-weight:600;
-  margin-bottom:24px;border:1px solid rgba(0,80,255,.15);
+  margin-bottom:24px;border:1px solid rgba(124,58,237,.15);
 }
 .badge-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 2px rgba(16,185,129,.25);animation:dot-pulse 2s ease-in-out infinite}
 .hero-title{
@@ -86,7 +86,7 @@ button,input,select{font-family:inherit}
   border-radius:12px;font-size:.9rem;font-weight:600;border:none;cursor:pointer;
   transition:transform .2s,box-shadow .2s;
 }
-.btn-blue:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,80,255,.38)}
+.btn-blue:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(124,58,237,.38)}
 .btn-ghost{
   display:inline-flex;align-items:center;gap:8px;
   background:transparent;color:var(--text);padding:14px 24px;
@@ -164,7 +164,7 @@ button,input,select{font-family:inherit}
   font-weight:700;letter-spacing:.08em;text-transform:uppercase;
   margin-bottom:14px;
 }
-.chip-blue{background:var(--blue-lt);color:var(--blue);border:1px solid rgba(0,80,255,.15)}
+.chip-blue{background:var(--blue-lt);color:var(--blue);border:1px solid rgba(124,58,237,.15)}
 .chip-cyan{background:var(--cyan-lt);color:var(--cyan);border:1px solid rgba(0,180,216,.2)}
 .chip-green{background:rgba(16,185,129,.1);color:var(--green);border:1px solid rgba(16,185,129,.2)}
 .sec-title{font-size:clamp(2rem,4vw,3rem);font-weight:700;line-height:1.1;letter-spacing:-.03em;color:var(--text);margin-bottom:0}
