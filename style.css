@@ -312,16 +312,62 @@ button,input,select{font-family:inherit}
 
 /* ── RESPONSIVE ────────────────────── */
 @media(max-width:1024px){
-  .hero{grid-template-columns:1fr;gap:48px;padding-top:100px}
+  .hero{
+    grid-template-columns:1fr;
+    gap:48px;
+    padding-top:100px;
+    text-align:center;
+  }
+  .hero-badge{margin-left:auto;margin-right:auto}
+  .hero-sub{margin-left:auto;margin-right:auto}
+  .hero-ctas{justify-content:center}
+  .hero-stats{justify-content:center}
+  .hero-right{justify-content:center}
+  .demo-card{max-width:480px;margin:0 auto}
   .sources-grid,.pricing-grid{grid-template-columns:1fr}
+  .section-head{text-align:center}
+  .sec-sub{margin-left:auto;margin-right:auto}
 }
 @media(max-width:768px){
   .grid-3{grid-template-columns:1fr}
   .nav-links a:not(.btn-nav){display:none}
+  .section{padding:72px 20px}
+  .section-tinted{padding:72px 20px}
+  .section-dark{padding:72px 20px}
+  .cta-section{padding:72px 20px}
+  .footer{padding:48px 20px 24px}
   .footer-top{flex-direction:column;gap:32px}
+  .footer-brand{flex:none}
   .footer-links{gap:28px}
+  .footer-bot{flex-direction:column;text-align:center;gap:16px}
+  .hero-title{font-size:clamp(2.2rem,8vw,3rem)}
+  .pricing-grid{grid-template-columns:1fr}
+  .sources-grid{grid-template-columns:1fr}
+  .hero-stats{flex-wrap:wrap;gap:16px;justify-content:center}
+  .hstat-sep{display:none}
 }
 @media(max-width:480px){
-  .hero-ctas{flex-direction:column}
+  .nav-inner{padding:0 16px}
+  .hero{padding:90px 16px 60px}
+  .hero-title{font-size:clamp(1.9rem,9vw,2.6rem)}
+  .hero-ctas{flex-direction:column;align-items:stretch}
+  .hero-ctas .btn-blue,
+  .hero-ctas .btn-ghost{justify-content:center;width:100%}
   .cta-form{flex-direction:column}
+  .cta-form input{min-width:0;width:100%}
+  .btn-white{width:100%}
+  .demo-card{font-size:.85rem}
+  .section{padding:56px 16px}
+  .section-tinted{padding:56px 16px}
+  .section-dark{padding:56px 16px}
+  .cta-section{padding:56px 16px}
+  .footer{padding:40px 16px 20px}
+  .grid-3{gap:14px}
+  .pricing-grid{gap:14px}
+  .sources-grid{gap:14px}
+  .card{padding:22px 18px}
+  .pricing-card{padding:26px 20px}
+  .pc-amount{font-size:2rem}
+  .hero-stats{gap:12px;padding-top:20px}
+  .hn{font-size:1.25rem}
 }
