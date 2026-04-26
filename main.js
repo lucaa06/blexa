@@ -48,6 +48,16 @@
     });
   }
 
+  window.handleWaitlistReact = function(email, callback) {
+    supabase.from('waitlist').insert({ startup: 'blexaai', email: email }).then(function(res) {
+      if (res.error) {
+        callback(res.error.code === '23505' ? 'duplicate' : 'error');
+      } else {
+        callback('success');
+      }
+    });
+  };
+
   document.querySelectorAll('form').forEach(function(form) {
     form.addEventListener('submit', function(e) { e.preventDefault(); handleWaitlist(form); });
   });
